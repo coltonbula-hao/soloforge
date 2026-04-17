@@ -1,0 +1,21 @@
+{
+  "name": "soloforge",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "docker compose -f infra/docker/docker-compose.yml up api --build",
+    "dev:worker": "docker compose -f infra/docker/docker-compose.yml up worker --build",
+    "dev:all": "docker compose -f infra/docker/docker-compose.yml up --build",
+    "build:web": "npm run build --workspace=apps/web",
+    "lint:web": "npm run lint --workspace=apps/web",
+    "typecheck:web": "npm run typecheck --workspace=apps/web"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

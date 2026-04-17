@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidVessel(data) {
+      return data.keys().hasAll(['vesselName', 'imoNumber', 'status', 'createdAt', 'createdBy']) &&
+             data.vesselName is string && data.vesselName.size() > 0 && data.vesselName.size() < 100 &&
+             data.imoNumber is string && data.imoNumber.size() > 0 && data.imoNumber.size() < 50 &&
+             data.status in ['航行中', '已靠泊', '卸货中', '离港'] &&
+             data.createdAt is timestamp &&
+             data.createdBy is string &&
+             (!('flag' in data) || (data.flag is string && data.flag.size() < 50)) &&
+             (!('eta' in data) || data.eta is timestamp) &&
+             (!('berth' in data) || (data.berth is string && data.berth.size() < 50)) &&
+             (!('cargoType' in data) || (data.cargoType is string && data.cargoType.size() < 100)) &&
+             (!('cargoAmount' in data) || data.cargoAmount is number) &&
+             (!('captainName' in data) || (data.captainName is string && data.captainName.size() < 100));
+    }
+
+    match /vessels/{vesselId} {
+      // Allow read for authenticated users (port workers)
+      allow read: if isAuthenticated();
+      
+      // Allow create if authenticated and data is valid
+      allow create: if isAuthenticated() && 
+                    isValidVessel(request.resource.data) && 
+                    request.resource.data.createdBy == request.auth.uid;
+                    
+      // Allow update if authenticated, data is valid, and createdBy is unchanged
+      allow update: if isAuthenticated() && 
+                    isValidVessel(request.resource.data) &&
+                    request.resource.data.createdBy == resource.data.createdBy &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+                    
+      // Allow delete if the user created it
+      allow delete: if isAuthenticated() && resource.data.createdBy == request.auth.uid;
+    }
+  }
+}

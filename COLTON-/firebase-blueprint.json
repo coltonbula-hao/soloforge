@@ -1,0 +1,29 @@
+{
+  "entities": {
+    "Vessel": {
+      "title": "Vessel",
+      "description": "A vessel arriving at or currently in the port.",
+      "type": "object",
+      "properties": {
+        "vesselName": { "type": "string", "description": "Name of the vessel" },
+        "imoNumber": { "type": "string", "description": "IMO number" },
+        "flag": { "type": "string", "description": "Country of registration" },
+        "eta": { "type": "string", "format": "date-time", "description": "Estimated time of arrival" },
+        "berth": { "type": "string", "description": "Assigned berth" },
+        "status": { "type": "string", "enum": ["航行中", "已靠泊", "卸货中", "离港"], "description": "Current status" },
+        "cargoType": { "type": "string", "description": "Type of cargo" },
+        "cargoAmount": { "type": "number", "description": "Amount of cargo" },
+        "captainName": { "type": "string", "description": "Name of the captain" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["vesselName", "imoNumber", "status", "createdAt", "createdBy"]
+    }
+  },
+  "firestore": {
+    "vessels/{vesselId}": {
+      "schema": { "$ref": "#/entities/Vessel" },
+      "description": "Stores all vessel records."
+    }
+  }
+}
