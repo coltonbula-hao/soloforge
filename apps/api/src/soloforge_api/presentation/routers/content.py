@@ -1,6 +1,9 @@
 """内容创作路由。"""
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from soloforge_api.application.use_cases.content import ContentUseCase
@@ -11,6 +14,7 @@ from soloforge_api.presentation.schemas.content import (
     ContentCreateRequest,
     ContentGenerateRequest,
     ContentResponse,
+    ContentRewriteRequest,
     ContentUpdateRequest,
 )
 
@@ -57,6 +61,51 @@ async def generate_content(
         prompt=payload.prompt,
     )
     return _to_response(creation)
+
+
+@router.post("/generate/stream")
+async def generate_content_stream(
+    payload: ContentGenerateRequest,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """AI 流式生成文章（SSE）。"""
+
+    async def event_stream():
+        use_case = ContentUseCase(db)
+        async for chunk in use_case.stream_generate(
+            user_id=current_user.id,
+            title=payload.title,
+            knowledge_base_id=payload.knowledge_base_id,
+            prompt=payload.prompt,
+        ):
+            yield f"data: {json.dumps({'text': chunk}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'done': True}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/rewrite", response_model=dict)
+async def rewrite_content(
+    payload: ContentRewriteRequest,
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """AI 改写文本。"""
+    use_case = ContentUseCase(db)
+    result = await use_case.ai_rewrite(
+        text=payload.text,
+        action=payload.action,
+    )
+    return {"text": result}
 
 
 @router.post("", response_model=ContentResponse, status_code=status.HTTP_201_CREATED)

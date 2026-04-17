@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,14 @@ export default function ContentDetailPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [status, setStatus] = useState("");
+  const [selection, setSelection] = useState<{
+    start: number;
+    end: number;
+    text: string;
+  } | null>(null);
+  const [rewriting, setRewriting] = useState(false);
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -46,6 +54,46 @@ export default function ContentDetailPage() {
     }
     loadData();
   }, [router, id, loadData]);
+
+  function handleTextSelect() {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    if (start !== end && start >= 0 && end <= ta.value.length) {
+      const text = ta.value.substring(start, end);
+      if (text.trim().length > 0) {
+        setSelection({ start, end, text });
+        return;
+      }
+    }
+    setSelection(null);
+  }
+
+  async function handleRewrite(action: string) {
+    if (!selection) return;
+    try {
+      setRewriting(true);
+      setError("");
+      const res = await api.rewriteContent({
+        text: selection.text,
+        action,
+      });
+      const newContent =
+        content.substring(0, selection.start) +
+        res.text +
+        content.substring(selection.end);
+      setContent(newContent);
+      setSelection(null);
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 0);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "改写失败");
+    } finally {
+      setRewriting(false);
+    }
+  }
 
   async function handleSave() {
     try {
@@ -73,7 +121,11 @@ export default function ContentDetailPage() {
             <span className="text-xs text-muted-foreground">创作详情</span>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/content")}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/content")}
+            >
               返回创作列表
             </Button>
           </div>
@@ -83,14 +135,16 @@ export default function ContentDetailPage() {
       <main className="mx-auto max-w-4xl px-6 py-10">
         {loading ? (
           <p className="text-muted-foreground">加载中...</p>
-        ) : error ? (
+        ) : error && !item ? (
           <p className="text-destructive">{error}</p>
         ) : item ? (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold">编辑创作</h1>
-                <Badge variant={status === "published" ? "default" : "secondary"}>
+                <Badge
+                  variant={status === "published" ? "default" : "secondary"}
+                >
                   {status === "published" ? "已发布" : "草稿"}
                 </Badge>
               </div>
@@ -99,7 +153,9 @@ export default function ContentDetailPage() {
                   variant="outline"
                   size="sm"
                   onClick={() =>
-                    setStatus((prev) => (prev === "published" ? "draft" : "published"))
+                    setStatus((prev) =>
+                      prev === "published" ? "draft" : "published"
+                    )
                   }
                 >
                   {status === "published" ? "设为草稿" : "发布"}
@@ -114,13 +170,69 @@ export default function ContentDetailPage() {
               <CardContent className="pt-6 space-y-4">
                 <div className="space-y-1">
                   <label className="text-sm font-medium">标题</label>
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
                 </div>
+
+                {/* AI 辅助编辑工具栏 */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground mr-1">
+                    AI 辅助编辑：
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRewrite("polish")}
+                    disabled={!selection || rewriting}
+                  >
+                    润色
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRewrite("expand")}
+                    disabled={!selection || rewriting}
+                  >
+                    扩写
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRewrite("condense")}
+                    disabled={!selection || rewriting}
+                  >
+                    缩写
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRewrite("continue")}
+                    disabled={!selection || rewriting}
+                  >
+                    续写
+                  </Button>
+                  {selection && (
+                    <span className="text-xs text-primary ml-1">
+                      已选中 {selection.text.length} 字
+                    </span>
+                  )}
+                  {rewriting && (
+                    <span className="text-xs text-muted-foreground animate-pulse">
+                      AI 处理中...
+                    </span>
+                  )}
+                </div>
+
                 <div className="space-y-1">
                   <label className="text-sm font-medium">正文</label>
                   <Textarea
+                    ref={textareaRef}
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
+                    onMouseUp={handleTextSelect}
+                    onKeyUp={handleTextSelect}
                     rows={20}
                     className="font-mono text-sm"
                   />
@@ -136,7 +248,9 @@ export default function ContentDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground">{item.prompt}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {item.prompt}
+                  </p>
                 </CardContent>
               </Card>
             )}

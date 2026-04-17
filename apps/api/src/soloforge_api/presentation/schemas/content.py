@@ -13,6 +13,13 @@ class ContentGenerateRequest(BaseModel):
     prompt: str | None = Field(None, description="补充提示词/要求")
 
 
+class ContentRewriteRequest(BaseModel):
+    """AI 改写请求。"""
+
+    text: str = Field(..., min_length=1, description="需要改写的文本")
+    action: str = Field(..., description="改写动作: polish | expand | condense | continue")
+
+
 class ContentCreateRequest(BaseModel):
     """手动创建创作请求。"""
 

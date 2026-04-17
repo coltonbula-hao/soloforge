@@ -107,6 +107,27 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  streamGenerateContent: (data: {
+    title: string;
+    knowledge_base_id?: string;
+    prompt?: string;
+  }) => {
+    const token = getToken();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(`${API_BASE}/content/generate/stream`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(data),
+    });
+  },
+  rewriteContent: (data: { text: string; action: string }) =>
+    request<{ text: string }>("/content/rewrite", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   createContent: (data: {
     title: string;
     content: string;
